@@ -64,7 +64,7 @@ fn open(alc: mem.Allocator, url_string: []const u8) !std.net.Stream {
 }
 
 // Check if the given file descriptor is a pipe
-pub fn isPipe(fd: i32) !bool {
+pub fn isPipe(fd: os.fd_t) !bool {
     var stat: os.linux.Stat = undefined;
     if (0 != os.linux.fstat(fd, &stat)) {
         return error.Fstat;
