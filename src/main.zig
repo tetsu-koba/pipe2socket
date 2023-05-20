@@ -94,6 +94,7 @@ pub fn main() !void {
     try os.epoll_ctl(epoll_fd, os.linux.EPOLL.CTL_ADD, signal_event.data.fd, &signal_event);
     const timeout = 5000;
     var buf = try alc.alloc(u8, 64 * 1024);
+    defer alc.free(buf);
     running = true;
     while (running) {
         var events: [MAX_EVENT]os.linux.epoll_event = .{};
