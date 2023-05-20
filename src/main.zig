@@ -63,6 +63,30 @@ fn open(alc: mem.Allocator, url_string: []const u8) !std.net.Stream {
     return error.InvalidURL;
 }
 
+// Check if the given file descriptor is a pipe
+pub fn isPipe(fd: i32) !bool {
+    var stat: os.linux.Stat = undefined;
+    if (0 != os.linux.fstat(fd, &stat)) {
+        return error.Fstat;
+    }
+    return (stat.mode & os.linux.S.IFMT) == os.linux.S.IFIFO;
+}
+
+// Get the max size pipe
+pub fn getPipeMaxSize() !usize {
+    var pipe_max_size_file = try std.fs.cwd().openFile("/proc/sys/fs/pipe-max-size", .{});
+    defer pipe_max_size_file.close();
+
+    var reader = pipe_max_size_file.reader();
+    var buffer: [128]u8 = undefined;
+    const max_size_str = std.mem.trimRight(u8, buffer[0..(try reader.readAll(&buffer))], &std.ascii.whitespace);
+    const max_size = std.fmt.parseInt(usize, max_size_str, 10) catch |err| {
+        std.debug.print("Failed to parse /proc/sys/fs/pipe-max-size: {}\n", .{err});
+        return err;
+    };
+    return max_size;
+}
+
 pub fn main() !void {
     const alc = std.heap.page_allocator;
     const args = try std.process.argsAlloc(alc);
@@ -72,7 +96,11 @@ pub fn main() !void {
         std.debug.print("Usage: {s} URL\nURL is 'tcp://hostname:port'\n", .{args[0]});
         os.exit(1);
     }
-    const url_string = mem.sliceTo(args[1], 0);
+    const url_string = args[1];
+    if (!try isPipe(os.linux.STDIN_FILENO)) {
+        std.debug.print("stdin must be pipe\n", .{});
+        os.exit(1);
+    }
 
     const tcp = try open(alc, url_string);
     defer tcp.close();
@@ -93,7 +121,8 @@ pub fn main() !void {
     };
     try os.epoll_ctl(epoll_fd, os.linux.EPOLL.CTL_ADD, signal_event.data.fd, &signal_event);
     const timeout = 5000;
-    var buf = try alc.alloc(u8, 64 * 1024);
+    const pipe_max_size = try getPipeMaxSize();
+    var buf = try alc.alloc(u8, pipe_max_size);
     defer alc.free(buf);
     running = true;
     while (running) {
