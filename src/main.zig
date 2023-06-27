@@ -20,7 +20,7 @@ fn handleSignals(signal_fd: os.fd_t) !void {
     if (buf.len != try os.read(signal_fd, &buf)) {
         return os.ReadError.InputOutput;
     }
-    const info = @ptrCast(*os.linux.signalfd_siginfo, &buf);
+    const info: *os.linux.signalfd_siginfo = @ptrCast(&buf);
     switch (info.signo) {
         os.linux.SIG.INT => {
             log.info("{d}:Got SIGINT", .{time.milliTimestamp()});
